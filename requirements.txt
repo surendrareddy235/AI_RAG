@@ -5,3 +5,4 @@ google-generativeai
 unstructured
 langchain-community
 langchain-huggingface
+langchain_google_genai

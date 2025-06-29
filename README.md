@@ -1,59 +1,85 @@
-Simple RAG System with LangChain, FAISS, and Gemini API
+🔹 Imports
+from langchain_community.document_loaders import PyPDFLoader
+→ Loads and reads content from a PDF file.
 
-This project builds a simple Retrieval-Augmented Generation (RAG) system using LangChain, FAISS, and a local Hugging Face embedding model. It extracts text from a PDF file, splits it into smaller chunks, generates embeddings for each chunk, and stores them in a FAISS vector store. This setup can be used for question-answering systems where a user query retrieves the most relevant document chunks based on similarity.
+from langchain.text_splitter import CharacterTextSplitter
+→ Splits long text into smaller overlapping chunks.
 
-Requirements
+from langchain_community.embeddings import HuggingFaceEmbeddings
+→ Generates vector embeddings using a Hugging Face model.
 
-These are the Python libraries required for this project:
+from langchain_community.vectorstores import FAISS
+→ Stores and retrieves vectors using the FAISS similarity search library.
 
-langchain – the core framework that manages chaining components together
-langchain-community – for community-supported document loaders and vector stores
-langchain-huggingface – to use Hugging Face embedding models
-sentence-transformers – provides access to models like all-MiniLM-L6-v2
-faiss-cpu – fast vector similarity search engine
-google-generativeai – to use Gemini as your LLM (optional in this stage)
-unstructured – helps LangChain extract and parse content from PDFs and other documents
+import numpy as np
+→ Imports NumPy (not used in this script directly, but commonly needed with embeddings).
 
-Install everything using the following command:
+from langchain.chains import RetrievalQA
+-> used to chaining the answers and question embedding
 
-pip install -r requirements.txt
+from langchain_google_genai import ChatGoogleGenerativeAI
+->this will you with interacting with google models
+import os
+-> in this project os will help you to get the env 
 
-Imports Used
+from dotenv import load_dotenv
+->dotenv is where your api is stored than with the help of os you can get the api key
 
-These are the required Python modules imported in your script:
+🔹 PDF Loading
+loader = PyPDFLoader('surya.pdf')
+→ Initializes the PDF loader with your file.
 
-PyPDFLoader from langchain_community loads PDF files into structured LangChain documents
+document = loader.load()
+→ Loads and parses the PDF into a list of document objects.
 
-CharacterTextSplitter breaks long text into manageable chunks for embedding
+🔹 Text Splitting
+splitter = CharacterTextSplitter(chunk_size=50, chunk_overlap=10)
+→ Sets the chunk size to 50 characters with a 10-character overlap between chunks.
 
-HuggingFaceEmbeddings loads and runs the local sentence-transformers model
+text = splitter.split_documents(document)
+→ Splits the entire PDF content into manageable text chunks.
 
-FAISS stores embeddings for fast similarity search
+🔹 Embedding Generation
+embedding_model = HuggingFaceEmbeddings(model_name='all-MiniLM-L6-v2')
+→ Loads a lightweight and efficient sentence embedding model.
+-> it is a sentence level embedding model it will create a vector size of 384 for each chunk i told you that chunk mean a sentence if a sentence have 1 word nun the less this model creates 384 vector size the same size of a full sentence with 50 words 
 
-numpy is used optionally if you want to inspect raw vectors
 
-Step 1: Load the PDF
+🔹 Vector Store Creation
+vector_store = FAISS.from_documents(text, embedding_model)
+→ Converts the chunks into embeddings and stores them in a FAISS vector index.
 
-PyPDFLoader reads the contents of your PDF file, page by page, and converts it into a list of Document objects. These documents contain both the raw text and metadata such as page number and source. You loaded "surya.pdf" using this loader.
+🔹 Accessing the FAISS Index
+vector_embeddings = vector_store.index
+→ Retrieves the raw FAISS index which contains all the vector embeddings.
+-> A single vector of size 384 for each chunk.
 
-Step 2: Split Text into Chunks
+ <!-- LLM Setup – Gemini API -->
 
-CharacterTextSplitter breaks the raw document text into smaller pieces.
+    llm = ChatGoogleGenerativeAI(model='gemini-1.5-flash', google_api_key=os.getenv('GEMINI_API_KEY'))
+    → Initializes the Gemini LLM using your API key stored in .env.
 
-chunk_size=50: splits the document into parts of about 50 characters
+🔹 RetrievalQA Chain
+qa_chain = RetrievalQA.from_chain_type(
+    llm=llm,
+    retriever=vector_store.as_retriever(search_kwargs={"k": 2}),
+    return_source_documents=True
+)
 
-chunk_overlap=10: ensures that 10 characters from the end of one chunk are repeated at the start of the next. This overlap helps maintain the context across chunks and prevents meaning loss during retrieval.
+→ Combines your retriever (FAISS) and Gemini LLM into a single question-answering chain.
 
-The result is a list of small text chunks stored in the variable text.
+✔️ It searches the top 2 relevant chunks based on your query.
+✔️ It embeds your question internally, fetches relevant data, and sends it to Gemini for answering.
 
-Step 3: Embed Chunks and Store in FAISS
+🔹 Continuous Q&A Loop
 
-HuggingFaceEmbeddings loads the model all-MiniLM-L6-v2 from your local Hugging Face cache and generates embeddings for each chunk in text. These embeddings are then stored in a FAISS index using FAISS.from_documents.
+while True:
+    query = input("ask a question (or 'exit'):")
+    if query.lower() == "exit":
+        break
+    response = qa_chain.invoke({'query': query})
+    print('gemini:', response["result"])
 
-This makes your text searchable. When a user asks a question, you can retrieve the most similar text chunks based on the vector similarity.
-
-Step 4: Access the Raw Embeddings (Optional)
-
-If you want to check the actual embedding vectors stored in FAISS, you can access the underlying FAISS index object (vector_store.index) and use the .reconstruct() method to print the raw vector of any chunk by its index.
-
-Next Step
+→ This loop allows you to ask multiple questions continuously.
+→ Type 'exit' to quit.
+→ Gemini will answer based only on the content inside your PDF.
