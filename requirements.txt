@@ -1,0 +1,7 @@
+langchain
+faiss-cpu
+sentence-transformers
+google-generativeai
+unstructured
+langchain-community
+langchain-huggingface
